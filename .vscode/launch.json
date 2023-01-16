@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Run",
+            "program": "${workspaceFolder:mangasee-comment-api}/.build/debug/Run",
+            "args": [],
+            "cwd": "${workspaceFolder:mangasee-comment-api}",
+            "preLaunchTask": "swift: Build Debug Run"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release Run",
+            "program": "${workspaceFolder:mangasee-comment-api}/.build/release/Run",
+            "args": [],
+            "cwd": "${workspaceFolder:mangasee-comment-api}",
+            "preLaunchTask": "swift: Build Release Run"
+        }
+    ]
+}
