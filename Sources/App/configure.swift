@@ -13,4 +13,12 @@ public func configure(_ app: Application) throws {
 
     // register routes
     try routes(app)
+
+    let scanner = ScanHandler(app.logger)
+    Timer.scheduledTimer(withTimeInterval: 4 * 60, repeats: true) {
+        _ in
+        Task(priority: .medium) {
+            await scanner.scan()
+        }
+    }.fire()
 }

@@ -12,7 +12,7 @@ extension PostType: Codable {}
 final class Discussion: Model, Content {
   static let schema = "discussions"
 
-  @ID(key: .id)
+  @ID(custom: .id)
   var id: Int?
 
   @Parent(key: "user_id")

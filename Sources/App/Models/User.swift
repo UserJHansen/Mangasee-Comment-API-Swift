@@ -4,11 +4,11 @@ import Vapor
 final class User: Model, Content {
   static let schema = "users"
 
-  @ID(key: .id)
+  @ID(custom: .id)
   var id: Int?
 
   @Field(key: "name")
-  var mangaName: String?
+  var name: String
 
   @Children(for: \.$user)
   var comments: [Comment]
@@ -21,8 +21,8 @@ final class User: Model, Content {
 
   init() {}
 
-  init(id: Int, mangaName: String?) {
+  init(id: Int, name: String) {
     self.id = id
-    self.mangaName = mangaName
+    self.name = name
   }
 }

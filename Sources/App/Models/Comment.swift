@@ -4,7 +4,7 @@ import Vapor
 final class Comment: Model, Content {
   static let schema = "comments"
 
-  @ID(key: .id)
+  @ID(custom: .id)
   var id: Int?
 
   @Parent(key: "user_id")
@@ -36,11 +36,11 @@ final class Comment: Model, Content {
     mangaName: Manga.IDValue?
   ) {
     self.id = id
-    self.$user.id = userId
+    $user.id = userId
     self.content = content
     self.likes = likes
     self.createdAt = createdAt
-    self.$discussion.id = discussionId
-    self.$manga.id = mangaName
+    $discussion.id = discussionId
+    $manga.id = mangaName
   }
 }

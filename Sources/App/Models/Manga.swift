@@ -4,12 +4,11 @@ import Vapor
 final class Manga: Model, Content {
   static let schema = "mangas"
 
-  @ID(key: .id)
+  @ID(custom: .id)
   var id: String?
 
-  @Children(for: \.$reply)
+  @Children(for: \.$manga)
   var replies: [Comment]
 
   init() {}
-
 }
