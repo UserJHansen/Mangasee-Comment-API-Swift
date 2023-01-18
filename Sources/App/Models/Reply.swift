@@ -4,7 +4,7 @@ import Vapor
 final class Reply: Model, Content {
   static let schema = "replies"
 
-  @ID(custom: .id)
+  @ID(custom: .id, generatedBy: .user)
   var id: Int?
 
   @Parent(key: "user_id")

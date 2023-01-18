@@ -13,6 +13,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.0.0"),
 
         .package(url: "https://github.com/JohnSundell/CollectionConcurrencyKit.git", from: "0.2.0"),
+        .package(url: "https://github.com/BrettRToomey/Jobs.git", from: "1.1.1"),
     ],
     targets: [
         .target(
@@ -21,6 +22,7 @@ let package = Package(
                 .product(name: "Fluent", package: "fluent"),
                 .product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
                 .product(name: "Vapor", package: "vapor"),
+                .product(name: "Jobs", package: "jobs"),
             ],
             swiftSettings: [
                 // Enable better optimizations when building in Release configuration. Despite the use of

@@ -1,5 +1,6 @@
 import Fluent
 import FluentSQLiteDriver
+import Jobs
 import Vapor
 
 // configures your application
@@ -14,11 +15,10 @@ public func configure(_ app: Application) throws {
     // register routes
     try routes(app)
 
-    let scanner = ScanHandler(app.logger)
-    Timer.scheduledTimer(withTimeInterval: 4 * 60, repeats: true) {
-        _ in
+    let scanner = ScanHandler(app.logger, url: Environment.get("SERVER") ?? "https://mangasee123.com/", db: app.db)
+    Jobs.add(interval: .seconds(4.0 * 60)) {
         Task(priority: .medium) {
             await scanner.scan()
         }
-    }.fire()
+    }
 }

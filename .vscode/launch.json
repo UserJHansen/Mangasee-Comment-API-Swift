@@ -6,6 +6,9 @@
             "name": "Debug Run",
             "program": "${workspaceFolder:mangasee-comment-api}/.build/debug/Run",
             "args": [],
+            "env": {
+                // "LOG_LEVEL": "debug"
+            },
             "cwd": "${workspaceFolder:mangasee-comment-api}",
             "preLaunchTask": "swift: Build Debug Run"
         },

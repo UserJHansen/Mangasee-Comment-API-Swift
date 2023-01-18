@@ -4,7 +4,7 @@ import Vapor
 final class Manga: Model, Content {
   static let schema = "mangas"
 
-  @ID(custom: .id)
+  @ID(custom: .id, generatedBy: .user)
   var id: String?
 
   @Children(for: \.$manga)

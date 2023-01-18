@@ -6,13 +6,42 @@ enum PostType: UInt8 {
   case request = 1
   case question = 2
   case announcement = 3
+
+  var name: String {
+    switch self {
+    case .general:
+      return "General"
+    case .request:
+      return "Request"
+    case .question:
+      return "Question"
+    case .announcement:
+      return "Announcement"
+    }
+  }
+
+  static func fromName(_ name: String) -> PostType? {
+    switch name {
+    case "General":
+      return .general
+    case "Request":
+      return .request
+    case "Question":
+      return .question
+    case "Announcement":
+      return .announcement
+    default:
+      return .general
+    }
+  }
 }
+
 extension PostType: Codable {}
 
 final class Discussion: Model, Content {
   static let schema = "discussions"
 
-  @ID(custom: .id)
+  @ID(custom: .id, generatedBy: .user)
   var id: Int?
 
   @Parent(key: "user_id")
@@ -43,7 +72,7 @@ final class Discussion: Model, Content {
     deleted: Bool?
   ) {
     self.id = id
-    self.$user.id = userId
+    $user.id = userId
     self.title = title
     self.content = content
     self.createdAt = createdAt
