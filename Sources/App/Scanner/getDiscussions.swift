@@ -133,7 +133,12 @@ extension ScanHandler {
             discussions.append((id, discussion))
         }
 
+        let preexistingusernames = try! await User.query(on: db).all()
         await usernames.limitedConcurrentForEach(maxConcurrent: 60) { [self] user async in
+            if preexistingusernames.contains(user) {
+                logger.debug("Skipping \(user.name) (\(user.id!)))")
+                return
+            }
             logger.debug("Saving \(user.name) (\(user.id!)))")
             try? await user.save(on: db)
         }
