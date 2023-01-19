@@ -4,7 +4,7 @@ struct CreateDiscussion: AsyncMigration {
   func prepare(on database: Database) async throws {
     try await database.schema("discussions")
       .field("id", .int, .required, .identifier(auto: false))
-      .field("user_id", .int, .required, .references("users", "id"))
+      .field("user_id", .int, .required, .references(User.schema, .id))
       .field("title", .string, .required)
       .field("content", .string, .required)
       .field("created_at", .datetime, .required)

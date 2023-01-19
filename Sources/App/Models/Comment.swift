@@ -31,9 +31,9 @@ final class Comment: Model, Content {
   init() {}
 
   init(
-    id: Int, userId: User.IDValue, content: String, likes: Int, createdAt: Date,
-    discussionId: Discussion.IDValue?,
-    mangaName: Manga.IDValue?
+    id: Int, userId: User.IDValue, content: String, likes: Int,
+    createdAt: Date, discussionId: Discussion.IDValue? = nil,
+    mangaName: Manga.IDValue? = nil
   ) {
     self.id = id
     $user.id = userId

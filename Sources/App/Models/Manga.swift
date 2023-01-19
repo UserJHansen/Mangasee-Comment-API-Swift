@@ -8,7 +8,11 @@ final class Manga: Model, Content {
   var id: String?
 
   @Children(for: \.$manga)
-  var replies: [Comment]
+  var comments: [Comment]
 
   init() {}
+
+  init(id: String) {
+    self.id = id
+  }
 }
