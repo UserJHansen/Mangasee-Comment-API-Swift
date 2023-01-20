@@ -26,7 +26,7 @@ public extension Sequence {
 }
 
 class ScanHandler {
-    var client: HTTPClient?
+    var client: HTTPClient = .init(eventLoopGroupProvider: .createNew)
     let logger: Logger
     let server: String
     let db: Database
@@ -37,15 +37,18 @@ class ScanHandler {
         self.db = db
     }
 
-    func scan() async {
-        client = HTTPClient(eventLoopGroupProvider: .createNew)
-        logger.info("\(Date()) Getting discussions...")
-        await getDiscussions()
+    deinit {
+        logger.error("Shutting down client")
+        try? client.syncShutdown()
+    }
 
-        logger.info("\(Date()) Finished, getting comments...")
+    func scan() async {
+        logger.info("\(Date()) Getting manga comments...")
         await getMangaComments()
 
+        logger.info("\(Date()) Finished, getting discussions...")
+        await getDiscussions()
+
         logger.info("\(Date()) Finished getting comments")
-        try? await client?.shutdown()
     }
 }

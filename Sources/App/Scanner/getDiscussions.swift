@@ -28,14 +28,16 @@ struct RawDiscussion: Codable {
 extension ScanHandler {
     func getDiscussions() async {
         var postIDs = Set<Int>()
+        var data: ByteBuffer = .init()
+
         do {
-            let response = try await client!.execute(.init(url: "\(server)discussion/index.get.php"), timeout: .seconds(30))
-            let data = try await response.body.collect(upTo: 100 * 1024)
+            let response = try await client.execute(.init(url: "\(server)discussion/index.get.php"), timeout: .seconds(30))
+            data = try await response.body.collect(upTo: 100 * 1024)
             let discussions = try JSONDecoder().decode(MangaseeResponse<[RawDiscussionList]>.self, from: data).val
 
             logger.info("\(Date()) Downloaded list of \(discussions.count) discussions")
 
-            for row in try await Discussion.query(on: db).with(\.$user).all() {
+            for row in try await Discussion.query(on: db).all() {
                 if row.deleted {
                     postIDs.remove(row.id!)
                 } else {
@@ -46,7 +48,7 @@ extension ScanHandler {
             postIDs.formUnion(discussions.map { Int($0.PostID) ?? 0 })
             postIDs.remove(0)
         } catch {
-            logger.error("\(Date()) Error getting discussions: \(error)")
+            logger.error("\(Date()) Error getting discussions: \(error) Data \(data.getString(at: 0, length: data.readableBytes)!)")
             return
         }
 
@@ -59,7 +61,7 @@ extension ScanHandler {
         }
 
         var usernames = Set<User>((try? await User.query(on: db).all()) ?? [])
-        logger.info("Building \(queue.count) requests...")
+        logger.info("\(Date()) Building \(queue.count) requests...")
         var discussions: [(Int, RawDiscussion)] = []
         var comments = [Int: [RawComment]]()
         var replies = [Int: Set<RawReply>]()
@@ -69,7 +71,7 @@ extension ScanHandler {
 
             let data: ByteBuffer
             do {
-                let response = try await client!.execute(url, timeout: .seconds(60))
+                let response = try await client.execute(url, timeout: .seconds(60))
                 data = try await response.body.collect(upTo: 1024 * 1024)
             } catch {
                 logger.error("\(Date()) Error getting discussion \(id): \(error)")
@@ -107,7 +109,7 @@ extension ScanHandler {
                         var request = HTTPClientRequest(url: "\(server)discussion/post.reply.get.php")
                         request.body = .bytes(.init(string: "{\"TargetID\": \(comment.CommentID)}"))
                         request.method = .POST
-                        let response = try await client!.execute(request, timeout: .seconds(30))
+                        let response = try await client.execute(request, timeout: .seconds(30))
                         let data = try await response.body.collect(upTo: 1024 * 1024)
                         let newReplies = try JSONDecoder().decode(MangaseeResponse<[RawReply]>.self, from: data).val
 
