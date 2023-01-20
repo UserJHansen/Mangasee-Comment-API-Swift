@@ -8,6 +8,42 @@ struct SearchResponse: Codable {
     let a: [String] // Aliases
 }
 
+actor CommentBuffer {
+    var comments: [String: [RawComment]]
+
+    init() {
+        comments = [:]
+    }
+
+    func addComment(_ id: String, _ comment: RawComment) {
+        comments[id, default: []].append(comment)
+    }
+}
+
+actor ReplyBuffer {
+    var replies: [Int: [RawReply]]
+
+    init() {
+        replies = [:]
+    }
+
+    func addReply(_ id: Int, _ reply: RawReply) {
+        replies[id, default: []].append(reply)
+    }
+}
+
+actor UserBuffer {
+    var users: [User]
+
+    init() {
+        users = []
+    }
+
+    func addUser(_ user: User) {
+        users.append(user)
+    }
+}
+
 extension ScanHandler {
     func getMangaComments() async {
         var mangaNames = Set<String>()
@@ -28,16 +64,20 @@ extension ScanHandler {
 
         let queue = mangaNames.map {
             var request = HTTPClientRequest(url: "\(server)manga/comment.get.php")
-            request.body = .bytes(.init(string: "{\"IndexName\": \($0)}"))
+            request.body = .bytes(.init(string: "{\"IndexName\": \"\($0)\"}"))
             request.method = .POST
 
             return ($0, request)
         }
 
-        var usernames = Set<User>((try? await User.query(on: db).all()) ?? [])
+        let usernames = UserBuffer()
+        for user in try! await (User.query(on: db).all()) {
+            await usernames.addUser(user)
+        }
+
         logger.info("\(Date()) Building \(queue.count) requests...")
-        var comments = [String: [RawComment]]()
-        var replies = [Int: Set<RawReply>]()
+        let comments = CommentBuffer()
+        let replies = ReplyBuffer()
 
         await queue.limitedConcurrentForEach(maxConcurrent: 100) { [self] id, url in
             logger.debug("Starting request for manga \(id)")
@@ -61,11 +101,11 @@ extension ScanHandler {
 
             for comment in commentList {
                 logger.debug("Adding \(comment.Username) (\(comment.UserID)) to usernames")
-                usernames.insert(User(id: Int(comment.UserID)!, name: comment.Username))
-                comments[id, default: []].append(comment)
+                await usernames.addUser(User(id: Int(comment.UserID)!, name: comment.Username))
+                await comments.addComment(id, comment)
 
                 if Int(comment.ReplyCount)! != comment.Replies.count {
-                    logger.info("\(Date()) Loading replies for comment \(comment.CommentID) in manga \(id) ( \(comment.Replies.count) / \(comment.ReplyCount) replies)")
+                    logger.debug("\(Date()) Loading replies for comment \(comment.CommentID) in manga \(id) ( \(comment.Replies.count) / \(comment.ReplyCount) replies)")
 
                     do {
                         var request = HTTPClientRequest(url: "\(server)manga/reply.get.php")
@@ -77,10 +117,9 @@ extension ScanHandler {
 
                         for reply in newReplies {
                             logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
-                            usernames.insert(User(id: Int(reply.UserID)!, name: reply.Username))
-                            if replies[Int(comment.CommentID)!, default: []].insert(reply).inserted {
-                                logger.debug("Added reply \(reply.CommentID) to comment \(comment.CommentID)")
-                            }
+                            await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
+                            await replies.addReply(Int(comment.CommentID)!, reply)
+                            logger.debug("Added reply \(reply.CommentID) to comment \(comment.CommentID)")
                         }
                     } catch {
                         logger.error("\(Date()) Error loading replies: \(error)")
@@ -88,15 +127,15 @@ extension ScanHandler {
                 } else {
                     for reply in comment.Replies {
                         logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
-                        usernames.insert(User(id: Int(reply.UserID)!, name: reply.Username))
-                        replies[Int(comment.CommentID)!, default: []].insert(reply)
+                        await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
+                        await replies.addReply(Int(comment.CommentID)!, reply)
                     }
                 }
             }
         }
 
         let preexistingusernames = try! await User.query(on: db).all()
-        await usernames.limitedConcurrentForEach(maxConcurrent: 100) { [self] user async in
+        await usernames.users.limitedConcurrentForEach(maxConcurrent: 100) { [self] user async in
             if preexistingusernames.contains(user) {
                 logger.debug("Skipping \(user.name) (\(user.id!)))")
                 return
@@ -121,25 +160,27 @@ extension ScanHandler {
 
         logger.info("\(Date()) Saving comments")
         let preexistingcomments = try! await Comment.query(on: db).all()
-        for (id, comment) in comments {
-            await comment.concurrentForEach { [self] comment async in
-                let commentId = Int(comment.CommentID)!
-                if preexistingcomments.contains(where: { $0.id == commentId }) {
-                    logger.debug("Skipping comment \(comment.CommentID) (\(id))")
-                    return
-                }
-                logger.debug("Saving comment \(comment.CommentID) (\(id))")
-                do {
-                    try await comment.convert(mangaName: id).save(on: db)
-                } catch {
-                    logger.error("Failed to save comment \(comment.CommentID) (\(id)): \(error)")
-                }
+        let newComments = await comments.comments.flatMap { comment -> [(String, RawComment)] in
+            comment.1.filter { comment in
+                !preexistingcomments.contains(where: { $0.id == Int(comment.CommentID)! })
+            }.map { res in (comment.0, res) }
+        }.map { id, comment in
+            comment.convert(mangaName: id)
+        }
+
+        await newComments.limitedConcurrentForEach(maxConcurrent: 50) { [self] comment async in
+            logger.info("Saving comment \(comment.id!) (\(comment.$manga.$id))")
+            do {
+                try await comment.save(on: db)
+            } catch {
+                logger.error("Failed to save comment \(comment.id!) (\(comment.$manga.$id)): \(error)")
             }
         }
 
         logger.info("\(Date()) Saving replies")
         let preexistingreplies = try! await Reply.query(on: db).all()
-        for (id, reply) in replies {
+        for (id, reply) in await replies.replies {
+            logger.debug("Saving \(reply.count) replies for comment \(id)")
             await reply.concurrentForEach { [self] reply async in
                 let replyId = Int(reply.CommentID)!
                 if preexistingreplies.contains(where: { $0.id == replyId }) {
@@ -147,7 +188,7 @@ extension ScanHandler {
                     return
                 }
 
-                logger.debug("Saving reply \(reply.CommentID) (\(id))")
+                logger.info("Saving reply \(reply.CommentID) (\(id))")
                 do {
                     try await reply.convert(id).save(on: db)
                 } catch {

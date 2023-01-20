@@ -20,7 +20,7 @@ private final class MangaseeTime {
     private init() {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        formatter.timeZone = TimeZone(abbreviation: "PST")
+        formatter.timeZone = TimeZone(secondsFromGMT: -8 * 60 * 60)
         formatter.calendar = Calendar(identifier: .gregorian)
         self.formatter = formatter
     }
@@ -33,6 +33,7 @@ private final class MangaseeTime {
 extension Date {
     init?(mangaseeTime time: String) {
         guard let date = MangaseeTime.shared.date(from: time) else {
+            print("Failed to parse date \(time)")
             return nil
         }
 
