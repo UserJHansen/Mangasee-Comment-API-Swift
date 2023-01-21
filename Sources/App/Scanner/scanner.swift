@@ -25,17 +25,16 @@ public extension Sequence {
     }
 }
 
+enum ConLimits {
+    static let network = 1000
+    static let db = 500
+}
+
 class ScanHandler {
     var client: HTTPClient = .init(eventLoopGroupProvider: .createNew)
     let logger: Logger
     let server: String
     let db: Database
-
-    let concurrencyLimits = [
-        30,
-        30,
-        30,
-    ]
 
     init(_ logger: Logger, url server: String, db: Database) {
         self.logger = logger

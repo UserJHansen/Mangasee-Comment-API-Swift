@@ -70,7 +70,7 @@ extension ScanHandler {
         let comments = CommentBuffer<Int>()
         let replies = ReplyBuffer()
 
-        await queue.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[0]) { [self] id, url in
+        await queue.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] id, url in
             logger.debug("Starting request for discussion \(id)")
 
             let data: ByteBuffer
@@ -139,7 +139,7 @@ extension ScanHandler {
         }
 
         let preexistingusernames = try! await User.query(on: db).all()
-        await usernames.users.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[1]) { [self] user async in
+        await usernames.users.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] user async in
             if preexistingusernames.contains(user) {
                 logger.debug("Skipping \(user.name) (\(user.id!)))")
                 return
@@ -148,7 +148,7 @@ extension ScanHandler {
             try? await user.save(on: db)
         }
 
-        await discussions.discussions.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[2]) { [self] id, discussion in
+        await discussions.discussions.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] id, discussion in
 
             // MARK: - Format the discussion
 

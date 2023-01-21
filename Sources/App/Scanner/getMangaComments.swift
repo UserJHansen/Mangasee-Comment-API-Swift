@@ -40,10 +40,10 @@ extension ScanHandler {
         }
 
         logger.info("\(Date()) Building \(queue.count) requests...")
-        let comments = CommentBuffer()
+        let comments = CommentBuffer<String>()
         let replies = ReplyBuffer()
 
-        await queue.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[0]) { [self] id, url in
+        await queue.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] id, url in
             logger.debug("Starting request for manga \(id)")
 
             let data: ByteBuffer
@@ -99,7 +99,7 @@ extension ScanHandler {
         }
 
         let preexistingusernames = try! await User.query(on: db).all()
-        await usernames.users.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[1]) { [self] user async in
+        await usernames.users.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] user async in
             if preexistingusernames.contains(user) {
                 logger.debug("Skipping \(user.name) (\(user.id!)))")
                 return
@@ -109,7 +109,7 @@ extension ScanHandler {
         }
 
         let preexistingmangas = try! await Manga.query(on: db).all()
-        await mangaNames.limitedConcurrentForEach(maxConcurrent: 100) { [self] manga async in
+        await mangaNames.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] manga async in
             if preexistingmangas.contains(where: { $0.id == manga }) {
                 logger.debug("Skipping \(manga)")
                 return
@@ -132,7 +132,7 @@ extension ScanHandler {
             comment.convert(mangaName: id)
         }
 
-        await newComments.limitedConcurrentForEach(maxConcurrent: 50) { [self] comment async in
+        await newComments.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] comment async in
             logger.info("Saving comment \(comment.id!) (\(comment.$manga.$id))")
             do {
                 try await comment.save(on: db)

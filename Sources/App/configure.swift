@@ -17,7 +17,7 @@ public func configure(_ app: Application) throws {
     try routes(app)
 
     let scanner = ScanHandler(app.logger, url: Environment.get("SERVER") ?? "https://mangasee123.com/", db: app.db)
-    Jobs.add(interval: .seconds(5.0 * 60)) {
+    Jobs.add(interval: .seconds(10.0 * 60)) {
         Task {
             await scanner.scan()
         }
