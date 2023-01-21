@@ -60,13 +60,17 @@ extension ScanHandler {
             return ($0, request)
         }
 
-        var usernames = Set<User>((try? await User.query(on: db).all()) ?? [])
-        logger.info("\(Date()) Building \(queue.count) requests...")
-        var discussions: [(Int, RawDiscussion)] = []
-        var comments = [Int: [RawComment]]()
-        var replies = [Int: Set<RawReply>]()
+        let usernames = UserBuffer()
+        for user in try! await (User.query(on: db).all()) {
+            await usernames.addUser(user)
+        }
 
-        await queue.limitedConcurrentForEach(maxConcurrent: 30) { [self] id, url in
+        logger.info("\(Date()) Building \(queue.count) requests...")
+        let discussions = DiscussionBuffer()
+        let comments = CommentBuffer<Int>()
+        let replies = ReplyBuffer()
+
+        await queue.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[0]) { [self] id, url in
             logger.debug("Starting request for discussion \(id)")
 
             let data: ByteBuffer
@@ -96,11 +100,11 @@ extension ScanHandler {
             }
 
             logger.debug("Adding \(discussion.Username) (\(discussion.UserID)) to usernames")
-            usernames.insert(User(id: Int(discussion.UserID)!, name: discussion.Username))
+            await usernames.addUser(User(id: Int(discussion.UserID)!, name: discussion.Username))
             for comment in discussion.Comments {
                 logger.debug("Adding \(comment.Username) (\(comment.UserID)) to usernames")
-                usernames.insert(User(id: Int(comment.UserID)!, name: comment.Username))
-                comments[id, default: []].append(comment)
+                await usernames.addUser(User(id: Int(comment.UserID)!, name: comment.Username))
+                await comments.addComment(id, comment)
 
                 if Int(comment.ReplyCount)! != comment.Replies.count {
                     logger.info("\(Date()) Loading replies for comment \(comment.CommentID) in discussion \(id) ( \(comment.Replies.count) / \(comment.ReplyCount) replies)")
@@ -115,10 +119,9 @@ extension ScanHandler {
 
                         for reply in newReplies {
                             logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
-                            usernames.insert(User(id: Int(reply.UserID)!, name: reply.Username))
-                            if replies[Int(comment.CommentID)!, default: []].insert(reply).inserted {
-                                logger.debug("Added reply \(reply.CommentID) to comment \(comment.CommentID)")
-                            }
+                            await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
+                            await replies.addReply(Int(comment.CommentID)!, reply)
+                            logger.debug("Added reply \(reply.CommentID) to comment \(comment.CommentID)")
                         }
                     } catch {
                         logger.error("\(Date()) Error loading replies: \(error)")
@@ -126,17 +129,17 @@ extension ScanHandler {
                 } else {
                     for reply in comment.Replies {
                         logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
-                        usernames.insert(User(id: Int(reply.UserID)!, name: reply.Username))
-                        replies[Int(comment.CommentID)!, default: []].insert(reply)
+                        await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
+                        await replies.addReply(Int(comment.CommentID)!, reply)
                     }
                 }
             }
 
-            discussions.append((id, discussion))
+            await discussions.addDiscussion(id, discussion)
         }
 
         let preexistingusernames = try! await User.query(on: db).all()
-        await usernames.limitedConcurrentForEach(maxConcurrent: 60) { [self] user async in
+        await usernames.users.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[1]) { [self] user async in
             if preexistingusernames.contains(user) {
                 logger.debug("Skipping \(user.name) (\(user.id!)))")
                 return
@@ -145,7 +148,7 @@ extension ScanHandler {
             try? await user.save(on: db)
         }
 
-        await discussions.limitedConcurrentForEach(maxConcurrent: 60) { [self] id, discussion in
+        await discussions.discussions.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[2]) { [self] id, discussion in
 
             // MARK: - Format the discussion
 
@@ -197,7 +200,7 @@ extension ScanHandler {
 
         logger.info("\(Date()) Saving comments")
         let preexistingcomments = try! await Comment.query(on: db).all()
-        for (id, comment) in comments {
+        for (id, comment) in await comments.comments {
             await comment.concurrentForEach { [self] comment async in
                 let commentId = Int(comment.CommentID)!
                 if preexistingcomments.contains(where: { $0.id == commentId }) {
@@ -215,7 +218,7 @@ extension ScanHandler {
 
         logger.info("\(Date()) Saving replies")
         let preexistingreplies = try! await Reply.query(on: db).all()
-        for (id, reply) in replies {
+        for (id, reply) in await replies.replies {
             await reply.concurrentForEach { [self] reply async in
                 let replyId = Int(reply.CommentID)!
                 if preexistingreplies.contains(where: { $0.id == replyId }) {

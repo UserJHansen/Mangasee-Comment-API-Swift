@@ -8,42 +8,6 @@ struct SearchResponse: Codable {
     let a: [String] // Aliases
 }
 
-actor CommentBuffer {
-    var comments: [String: [RawComment]]
-
-    init() {
-        comments = [:]
-    }
-
-    func addComment(_ id: String, _ comment: RawComment) {
-        comments[id, default: []].append(comment)
-    }
-}
-
-actor ReplyBuffer {
-    var replies: [Int: [RawReply]]
-
-    init() {
-        replies = [:]
-    }
-
-    func addReply(_ id: Int, _ reply: RawReply) {
-        replies[id, default: []].append(reply)
-    }
-}
-
-actor UserBuffer {
-    var users: [User]
-
-    init() {
-        users = []
-    }
-
-    func addUser(_ user: User) {
-        users.append(user)
-    }
-}
-
 extension ScanHandler {
     func getMangaComments() async {
         var mangaNames = Set<String>()
@@ -79,7 +43,7 @@ extension ScanHandler {
         let comments = CommentBuffer()
         let replies = ReplyBuffer()
 
-        await queue.limitedConcurrentForEach(maxConcurrent: 100) { [self] id, url in
+        await queue.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[0]) { [self] id, url in
             logger.debug("Starting request for manga \(id)")
 
             let data: ByteBuffer
@@ -135,7 +99,7 @@ extension ScanHandler {
         }
 
         let preexistingusernames = try! await User.query(on: db).all()
-        await usernames.users.limitedConcurrentForEach(maxConcurrent: 100) { [self] user async in
+        await usernames.users.limitedConcurrentForEach(maxConcurrent: concurrencyLimits[1]) { [self] user async in
             if preexistingusernames.contains(user) {
                 logger.debug("Skipping \(user.name) (\(user.id!)))")
                 return

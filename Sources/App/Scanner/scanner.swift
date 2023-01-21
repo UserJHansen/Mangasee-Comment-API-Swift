@@ -31,6 +31,12 @@ class ScanHandler {
     let server: String
     let db: Database
 
+    let concurrencyLimits = [
+        30,
+        30,
+        30,
+    ]
+
     init(_ logger: Logger, url server: String, db: Database) {
         self.logger = logger
         self.server = server
