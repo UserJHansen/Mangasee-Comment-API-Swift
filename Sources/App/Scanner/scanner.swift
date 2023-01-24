@@ -4,21 +4,41 @@ import Fluent
 import Vapor
 
 public extension Sequence {
+//    func limitedConcurrentForEach(
+//        maxConcurrent limit: Int = 30,
+//        withPriority priority: TaskPriority? = nil,
+//        _ operation: @escaping (Element) async -> Void
+//    ) async {
+//        var i = 0
+//        await withTaskGroup(of: Void.self) { group in
+//            for element in self {
+//                if i >= limit {
+//                    await group.next()
+//                }
+//                i += 1
+//
+//                group.addTask(priority: priority) {
+//                    await operation(element)
+//                }
+//            }
+//        }
+//    }
+
     func limitedConcurrentForEach(
         maxConcurrent limit: Int = 30,
         withPriority priority: TaskPriority? = nil,
-        _ operation: @escaping (Element) async -> Void
-    ) async {
+        _ operation: @escaping (Element) async throws -> Void
+    ) async rethrows {
         var i = 0
-        await withTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             for element in self {
                 if i >= limit {
-                    await group.next()
+                    try await group.next()
                 }
                 i += 1
 
                 group.addTask(priority: priority) {
-                    await operation(element)
+                    try await operation(element)
                 }
             }
         }
@@ -47,9 +67,9 @@ class ScanHandler {
         try? client.syncShutdown()
     }
 
-    func scan() async {
+    func scan() async throws {
         logger.info("\(Date()) Getting manga comments...")
-        await getMangaComments()
+        try await getMangaComments()
 
         logger.info("\(Date()) Finished, getting discussions...")
         await getDiscussions()

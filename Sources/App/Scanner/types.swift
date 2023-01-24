@@ -23,6 +23,11 @@ struct RawReply: Codable, Hashable {
 }
 
 struct RawComment: Codable {
+    // Another slight nitpick -- you can make these variable names
+    // Swifty but encode them nicely using CodingKeys:
+    // https://www.hackingwithswift.com/articles/119/codable-cheat-sheet
+    // or you could even write a custom KeyDecodingStrategy:
+    // https://developer.apple.com/documentation/foundation/jsondecoder/keydecodingstrategy
     let CommentID: String
     let UserID: String
     let Username: String

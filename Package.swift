@@ -23,6 +23,7 @@ let package = Package(
                 .product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "Jobs", package: "jobs"),
+                .product(name: "CollectionConcurrencyKit", package: "CollectionConcurrencyKit"),
             ],
             swiftSettings: [
                 // Enable better optimizations when building in Release configuration. Despite the use of
@@ -33,7 +34,6 @@ let package = Package(
         ),
         .executableTarget(name: "Run", dependencies: [
             .target(name: "App"),
-            .product(name: "CollectionConcurrencyKit", package: "CollectionConcurrencyKit"),
         ]),
         .testTarget(name: "AppTests", dependencies: [
             .target(name: "App"),

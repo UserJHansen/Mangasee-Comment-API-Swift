@@ -19,7 +19,7 @@ public func configure(_ app: Application) throws {
     let scanner = ScanHandler(app.logger, url: Environment.get("SERVER") ?? "https://mangasee123.com/", db: app.db)
     Jobs.add(interval: .seconds(10.0 * 60)) {
         Task {
-            await scanner.scan()
+            try await scanner.scan()
         }
     }
 }

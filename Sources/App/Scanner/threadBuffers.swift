@@ -1,4 +1,4 @@
-
+import Foundation
 
 actor CommentBuffer<T: Hashable> {
     var comments: [T: [RawComment]]
@@ -33,6 +33,11 @@ actor UserBuffer {
 
     func addUser(_ user: User) {
         users.append(user)
+    }
+
+    /// Adds multiple users at a given time.
+    func addUsers(_ users: any Sequence<User>) {
+        self.users.append(contentsOf: users)
     }
 }
 
