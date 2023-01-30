@@ -19,11 +19,16 @@ final class User: Model, Content, Hashable, Equatable {
   @Children(for: \.$user)
   var discussions: [Discussion]
 
+  var exists = true
+
   init() {}
 
   init(id: Int, name: String) {
     self.id = id
     self.name = name
+
+    // This works because this constructor is only called by the scanner
+    exists = false
   }
 
   func hash(into hasher: inout Hasher) {

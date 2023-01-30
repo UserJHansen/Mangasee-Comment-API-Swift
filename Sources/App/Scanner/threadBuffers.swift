@@ -1,54 +1,55 @@
 import Foundation
 
-actor CommentBuffer<T: Hashable> {
-    var comments: [T: [RawComment]]
+actor CrossThreadDictionarySet<T: Hashable, V: Hashable> {
+    var keys = Set<T>()
+    var elements = [T: Set<V>]()
 
     init() {
-        comments = [:]
+        keys = []
+        elements = [:]
     }
 
-    func addComment(_ id: T, _ comment: RawComment) {
-        comments[id, default: []].append(comment)
+    func insert(_ key: T, _ value: V) {
+        keys.insert(key)
+        if elements[key] == nil {
+            elements[key] = []
+        }
+        elements[key]!.insert(value)
+    }
+
+    func key(_ key: T) {
+        if keys.insert(key).inserted {
+            elements[key] = []
+        }
+    }
+
+    func remove(_ key: T, _ value: V) {
+        elements[key]!.remove(value)
+        if elements[key]!.isEmpty {
+            elements[key] = nil
+            keys.remove(key)
+        }
     }
 }
 
-actor ReplyBuffer {
-    var replies: [Int: [RawReply]]
+actor CrossThreadSet<V: Hashable> {
+    var elements = Set<V>()
 
     init() {
-        replies = [:]
+        elements = []
     }
 
-    func addReply(_ id: Int, _ reply: RawReply) {
-        replies[id, default: []].append(reply)
-    }
-}
-
-actor UserBuffer {
-    var users: [User]
-
-    init() {
-        users = []
+    func insert(_ value: V) {
+        elements.insert(value)
     }
 
-    func addUser(_ user: User) {
-        users.append(user)
+    func insert(_ values: [V]) {
+        for value in values {
+            elements.insert(value)
+        }
     }
 
-    /// Adds multiple users at a given time.
-    func addUsers(_ users: any Sequence<User>) {
-        self.users.append(contentsOf: users)
-    }
-}
-
-actor DiscussionBuffer {
-    var discussions: [(Int, RawDiscussion)]
-
-    init() {
-        discussions = []
-    }
-
-    func addDiscussion(_ id: Int, _ discussion: RawDiscussion) {
-        discussions.append((id, discussion))
+    func remove(_ value: V) {
+        elements.remove(value)
     }
 }

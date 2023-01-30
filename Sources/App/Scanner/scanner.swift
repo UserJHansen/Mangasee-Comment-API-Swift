@@ -46,25 +46,21 @@ public extension Sequence {
 }
 
 enum ConLimits {
-    static let network = 1000
-    static let db = 500
+    static let network = 100
+    static let db = 100
 }
 
 class ScanHandler {
-    var client: HTTPClient = .init(eventLoopGroupProvider: .createNew)
+    let client: Vapor.Client
     let logger: Logger
     let server: String
     let db: Database
 
-    init(_ logger: Logger, url server: String, db: Database) {
+    init(_ logger: Logger, url server: String, db: Database, client: Vapor.Client) {
         self.logger = logger
         self.server = server
         self.db = db
-    }
-
-    deinit {
-        logger.error("Shutting down client")
-        try? client.syncShutdown()
+        self.client = client
     }
 
     func scan() async throws {

@@ -22,217 +22,218 @@ struct RawDiscussion: Codable {
     let TimePosted: String
     let UserID: String
     let Username: String
-    let Comments: [RawComment]
+    let Comments: [Comment]
 }
 
 extension ScanHandler {
     func getDiscussions() async {
-        var postIDs = Set<Int>()
-        var data: ByteBuffer = .init()
+        logger.info("Not doing anything yet. This is a placeholder for the new discussion scanner.")
+        // var postIDs = Set<Int>()
+        // var data: ByteBuffer = .init()
 
-        do {
-            let response = try await client.execute(.init(url: "\(server)discussion/index.get.php"), timeout: .seconds(30))
-            data = try await response.body.collect(upTo: 100 * 1024)
-            let discussions = try JSONDecoder().decode(MangaseeResponse<[RawDiscussionList]>.self, from: data).val
+        // do {
+        //     let response = try await client.execute(.init(url: "\(server)discussion/index.get.php"), timeout: .seconds(30))
+        //     data = try await response.body.collect(upTo: 100 * 1024)
+        //     let discussions = try JSONDecoder().decode(MangaseeResponse<[RawDiscussionList]>.self, from: data).val
 
-            logger.info("\(Date()) Downloaded list of \(discussions.count) discussions")
+        //     logger.info("\(Date()) Downloaded list of \(discussions.count) discussions")
 
-            for row in try await Discussion.query(on: db).all() {
-                if row.deleted {
-                    postIDs.remove(row.id!)
-                } else {
-                    postIDs.insert(row.id!)
-                }
-            }
+        //     for row in try await Discussion.query(on: db).all() {
+        //         if row.deleted {
+        //             postIDs.remove(row.id!)
+        //         } else {
+        //             postIDs.insert(row.id!)
+        //         }
+        //     }
 
-            postIDs.formUnion(discussions.map { Int($0.PostID) ?? 0 })
-            postIDs.remove(0)
-        } catch {
-            logger.error("\(Date()) Error getting discussions: \(error) Data \(data.getString(at: 0, length: data.readableBytes)!)")
-            return
-        }
+        //     postIDs.formUnion(discussions.map { Int($0.PostID) ?? 0 })
+        //     postIDs.remove(0)
+        // } catch {
+        //     logger.error("\(Date()) Error getting discussions: \(error) Data \(data.getString(at: 0, length: data.readableBytes)!)")
+        //     return
+        // }
 
-        let queue = postIDs.map {
-            var request = HTTPClientRequest(url: "\(server)discussion/post.get.php")
-            request.body = .bytes(.init(string: "{\"id\": \($0)}"))
-            request.method = .POST
+        // let queue = postIDs.map {
+        //     var request = HTTPClientRequest(url: "\(server)discussion/post.get.php")
+        //     request.body = .bytes(.init(string: "{\"id\": \($0)}"))
+        //     request.method = .POST
 
-            return ($0, request)
-        }
+        //     return ($0, request)
+        // }
 
-        let usernames = UserBuffer()
-        for user in try! await (User.query(on: db).all()) {
-            await usernames.addUser(user)
-        }
+        // let usernames = UserBuffer()
+        // for user in try! await (User.query(on: db).all()) {
+        //     await usernames.addUser(user)
+        // }
 
-        logger.info("\(Date()) Building \(queue.count) requests...")
-        let discussions = DiscussionBuffer()
-        let comments = CommentBuffer<Int>()
-        let replies = ReplyBuffer()
+        // logger.info("\(Date()) Building \(queue.count) requests...")
+        // let discussions = DiscussionBuffer()
+        // let comments = CommentBuffer<Int>()
+        // let replies = ReplyBuffer()
 
-        await queue.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] id, url in
-            logger.debug("Starting request for discussion \(id)")
+        // await queue.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] id, url in
+        //     logger.debug("Starting request for discussion \(id)")
 
-            let data: ByteBuffer
-            do {
-                let response = try await client.execute(url, timeout: .seconds(60))
-                data = try await response.body.collect(upTo: 1024 * 1024)
-            } catch {
-                logger.error("\(Date()) Error getting discussion \(id): \(error)")
-                return
-            }
+        //     let data: ByteBuffer
+        //     do {
+        //         let response = try await client.execute(url, timeout: .seconds(60))
+        //         data = try await response.body.collect(upTo: 1024 * 1024)
+        //     } catch {
+        //         logger.error("\(Date()) Error getting discussion \(id): \(error)")
+        //         return
+        //     }
 
-            let discussion: RawDiscussion
-            do {
-                discussion = try JSONDecoder().decode(MangaseeResponse<RawDiscussion>.self, from: data).val
-            } catch {
-                // This discussion is deleted, mark it as such
-                if let model = (try? await Discussion.query(on: db).filter(\.$id == id).first()) {
-                    // This discussion already exists, update it
-                    model.deleted = true
-                    guard let _ = try? await model.save(on: db) else {
-                        logger.error("Failed to update discussion \(id)")
-                        return
-                    }
-                }
-                logger.info("Deleted discussion \(id), \(error) \(data.getString(at: 0, length: data.readableBytes)!)")
-                return
-            }
+        //     let discussion: RawDiscussion
+        //     do {
+        //         discussion = try JSONDecoder().decode(MangaseeResponse<RawDiscussion>.self, from: data).val
+        //     } catch {
+        //         // This discussion is deleted, mark it as such
+        //         if let model = (try? await Discussion.query(on: db).filter(\.$id == id).first()) {
+        //             // This discussion already exists, update it
+        //             model.deleted = true
+        //             guard let _ = try? await model.save(on: db) else {
+        //                 logger.error("Failed to update discussion \(id)")
+        //                 return
+        //             }
+        //         }
+        //         logger.info("Deleted discussion \(id), \(error) \(data.getString(at: 0, length: data.readableBytes)!)")
+        //         return
+        //     }
 
-            logger.debug("Adding \(discussion.Username) (\(discussion.UserID)) to usernames")
-            await usernames.addUser(User(id: Int(discussion.UserID)!, name: discussion.Username))
-            for comment in discussion.Comments {
-                logger.debug("Adding \(comment.Username) (\(comment.UserID)) to usernames")
-                await usernames.addUser(User(id: Int(comment.UserID)!, name: comment.Username))
-                await comments.addComment(id, comment)
+        //     logger.debug("Adding \(discussion.Username) (\(discussion.UserID)) to usernames")
+        //     await usernames.addUser(User(id: Int(discussion.UserID)!, name: discussion.Username))
+        //     for comment in discussion.Comments {
+        //         logger.debug("Adding \(comment.Username) (\(comment.UserID)) to usernames")
+        //         await usernames.addUser(User(id: Int(comment.UserID)!, name: comment.Username))
+        //         await comments.addComment(id, comment)
 
-                if Int(comment.ReplyCount)! != comment.Replies.count {
-                    logger.info("\(Date()) Loading replies for comment \(comment.CommentID) in discussion \(id) ( \(comment.Replies.count) / \(comment.ReplyCount) replies)")
+        //         if Int(comment.ReplyCount)! != comment.Replies.count {
+        //             logger.info("\(Date()) Loading replies for comment \(comment.CommentID) in discussion \(id) ( \(comment.Replies.count) / \(comment.ReplyCount) replies)")
 
-                    do {
-                        var request = HTTPClientRequest(url: "\(server)discussion/post.reply.get.php")
-                        request.body = .bytes(.init(string: "{\"TargetID\": \(comment.CommentID)}"))
-                        request.method = .POST
-                        let response = try await client.execute(request, timeout: .seconds(30))
-                        let data = try await response.body.collect(upTo: 1024 * 1024)
-                        let newReplies = try JSONDecoder().decode(MangaseeResponse<[RawReply]>.self, from: data).val
+        //             do {
+        //                 var request = HTTPClientRequest(url: "\(server)discussion/post.reply.get.php")
+        //                 request.body = .bytes(.init(string: "{\"TargetID\": \(comment.CommentID)}"))
+        //                 request.method = .POST
+        //                 let response = try await client.execute(request, timeout: .seconds(30))
+        //                 let data = try await response.body.collect(upTo: 1024 * 1024)
+        //                 let newReplies = try JSONDecoder().decode(MangaseeResponse<[RawReply]>.self, from: data).val
 
-                        for reply in newReplies {
-                            logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
-                            await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
-                            await replies.addReply(Int(comment.CommentID)!, reply)
-                            logger.debug("Added reply \(reply.CommentID) to comment \(comment.CommentID)")
-                        }
-                    } catch {
-                        logger.error("\(Date()) Error loading replies: \(error)")
-                    }
-                } else {
-                    for reply in comment.Replies {
-                        logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
-                        await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
-                        await replies.addReply(Int(comment.CommentID)!, reply)
-                    }
-                }
-            }
+        //                 for reply in newReplies {
+        //                     logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
+        //                     await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
+        //                     await replies.addReply(Int(comment.CommentID)!, reply)
+        //                     logger.debug("Added reply \(reply.CommentID) to comment \(comment.CommentID)")
+        //                 }
+        //             } catch {
+        //                 logger.error("\(Date()) Error loading replies: \(error)")
+        //             }
+        //         } else {
+        //             for reply in comment.Replies {
+        //                 logger.debug("Adding \(reply.Username) (\(reply.UserID)) to usernames")
+        //                 await usernames.addUser(User(id: Int(reply.UserID)!, name: reply.Username))
+        //                 await replies.addReply(Int(comment.CommentID)!, reply)
+        //             }
+        //         }
+        //     }
 
-            await discussions.addDiscussion(id, discussion)
-        }
+        //     await discussions.addDiscussion(id, discussion)
+        // }
 
-        let preexistingusernames = try! await User.query(on: db).all()
-        await usernames.users.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] user async in
-            if preexistingusernames.contains(user) {
-                logger.debug("Skipping \(user.name) (\(user.id!)))")
-                return
-            }
-            logger.debug("Saving \(user.name) (\(user.id!)))")
-            try? await user.save(on: db)
-        }
+        // let preexistingusernames = try! await User.query(on: db).all()
+        // await usernames.users.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] user async in
+        //     if preexistingusernames.contains(user) {
+        //         logger.debug("Skipping \(user.name) (\(user.id!)))")
+        //         return
+        //     }
+        //     logger.debug("Saving \(user.name) (\(user.id!)))")
+        //     try? await user.save(on: db)
+        // }
 
-        await discussions.discussions.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] id, discussion in
+        // await discussions.discussions.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] id, discussion in
 
-            // MARK: - Format the discussion
+        //     // MARK: - Format the discussion
 
-            guard let type = PostType.fromName(discussion.PostType) else { logger.error("Weird type for discussion \(discussion.PostID)"); return }
-            guard let userID = Int(discussion.UserID) else { logger.error("Weird user ID for \(discussion.Username) in discussion \(discussion.PostID)"); return }
+        //     guard let type = PostType.fromName(discussion.PostType) else { logger.error("Weird type for discussion \(discussion.PostID)"); return }
+        //     guard let userID = Int(discussion.UserID) else { logger.error("Weird user ID for \(discussion.Username) in discussion \(discussion.PostID)"); return }
 
-            guard let date = Date(mangaseeTime: discussion.TimePosted) else { logger.error("Weird date for discussion \(discussion.PostID)"); return }
+        //     guard let date = Date(mangaseeTime: discussion.TimePosted) else { logger.error("Weird date for discussion \(discussion.PostID)"); return }
 
-            // MARK: - Get the attached user
+        //     // MARK: - Get the attached user
 
-            let user = try? await User.query(on: db).filter(\.$id == userID).first()
-            guard let user = user else {
-                logger.error("User \(discussion.Username) (\(userID)) not found for discussion \(id)")
-                return
-            }
+        //     let user = try? await User.query(on: db).filter(\.$id == userID).first()
+        //     guard let user = user else {
+        //         logger.error("User \(discussion.Username) (\(userID)) not found for discussion \(id)")
+        //         return
+        //     }
 
-            if user.name != discussion.Username {
-                user.name = discussion.Username
-                do {
-                    try await user.save(on: db)
-                    logger.info("Username updated user to \(user.name) from \(discussion.Username)")
-                } catch {
-                    logger.error("Error updating username for \(user.name) to \(discussion.Username): \(error)")
-                }
-            }
+        //     if user.name != discussion.Username {
+        //         user.name = discussion.Username
+        //         do {
+        //             try await user.save(on: db)
+        //             logger.info("Username updated user to \(user.name) from \(discussion.Username)")
+        //         } catch {
+        //             logger.error("Error updating username for \(user.name) to \(discussion.Username): \(error)")
+        //         }
+        //     }
 
-            // MARK: - Save the discussion
+        //     // MARK: - Save the discussion
 
-            if let model = try? await Discussion.query(on: db).filter(\.$id == id).first() {
-                if model.title != discussion.PostTitle || model.content != discussion.PostContent || model.createdAt != date || model.type != type {
-                    logger.critical("Discussion \(discussion.PostID) has changed, we never should have gotten here! \(model.title) != \(discussion.PostTitle) || \(model.content) != \(discussion.PostContent) || \(model.createdAt) != \(date) || \(model.type) != \(type)")
-                }
-                return
-            }
+        //     if let model = try? await Discussion.query(on: db).filter(\.$id == id).first() {
+        //         if model.title != discussion.PostTitle || model.content != discussion.PostContent || model.createdAt != date || model.type != type {
+        //             logger.critical("Discussion \(discussion.PostID) has changed, we never should have gotten here! \(model.title) != \(discussion.PostTitle) || \(model.content) != \(discussion.PostContent) || \(model.createdAt) != \(date) || \(model.type) != \(type)")
+        //         }
+        //         return
+        //     }
 
-            let discussionModel = Discussion(
-                id: id, userId: user.id!, title: discussion.PostTitle, content: discussion.PostContent,
-                createdAt: date, type: type, deleted: false
-            )
+        //     let discussionModel = Discussion(
+        //         id: id, userId: user.id!, title: discussion.PostTitle, content: discussion.PostContent,
+        //         createdAt: date, type: type, deleted: false
+        //     )
 
-            logger.debug("Saving discussion \(id)")
-            do {
-                try await discussionModel.create(on: db)
-            } catch {
-                logger.error("Error saving discussion \(id): \(error)")
-            }
-            logger.info("\(Date()) Saved discussion \(id)")
-        }
+        //     logger.debug("Saving discussion \(id)")
+        //     do {
+        //         try await discussionModel.create(on: db)
+        //     } catch {
+        //         logger.error("Error saving discussion \(id): \(error)")
+        //     }
+        //     logger.info("\(Date()) Saved discussion \(id)")
+        // }
 
-        logger.info("\(Date()) Saving comments")
-        let preexistingcomments = try! await Comment.query(on: db).all()
-        for (id, comment) in await comments.comments {
-            await comment.concurrentForEach { [self] comment async in
-                let commentId = Int(comment.CommentID)!
-                if preexistingcomments.contains(where: { $0.id == commentId }) {
-                    logger.debug("Skipping comment \(comment.CommentID) (\(id))")
-                    return
-                }
-                logger.debug("Saving comment \(comment.CommentID) (\(id))")
-                do {
-                    try await comment.convert(discussionId: id).save(on: db)
-                } catch {
-                    logger.error("Failed to save comment \(comment.CommentID) (\(id)): \(error)")
-                }
-            }
-        }
+        // logger.info("\(Date()) Saving comments")
+        // let preexistingcomments = try! await Comment.query(on: db).all()
+        // for (id, comment) in await comments.comments {
+        //     await comment.concurrentForEach { [self] comment async in
+        //         let commentId = Int(comment.CommentID)!
+        //         if preexistingcomments.contains(where: { $0.id == commentId }) {
+        //             logger.debug("Skipping comment \(comment.CommentID) (\(id))")
+        //             return
+        //         }
+        //         logger.debug("Saving comment \(comment.CommentID) (\(id))")
+        //         do {
+        //             try await comment.convert(discussionId: id).save(on: db)
+        //         } catch {
+        //             logger.error("Failed to save comment \(comment.CommentID) (\(id)): \(error)")
+        //         }
+        //     }
+        // }
 
-        logger.info("\(Date()) Saving replies")
-        let preexistingreplies = try! await Reply.query(on: db).all()
-        for (id, reply) in await replies.replies {
-            await reply.concurrentForEach { [self] reply async in
-                let replyId = Int(reply.CommentID)!
-                if preexistingreplies.contains(where: { $0.id == replyId }) {
-                    logger.debug("Skipping reply \(reply.CommentID) (\(id))")
-                    return
-                }
+        // logger.info("\(Date()) Saving replies")
+        // let preexistingreplies = try! await Reply.query(on: db).all()
+        // for (id, reply) in await replies.replies {
+        //     await reply.concurrentForEach { [self] reply async in
+        //         let replyId = Int(reply.CommentID)!
+        //         if preexistingreplies.contains(where: { $0.id == replyId }) {
+        //             logger.debug("Skipping reply \(reply.CommentID) (\(id))")
+        //             return
+        //         }
 
-                logger.debug("Saving reply \(reply.CommentID) (\(id))")
-                do {
-                    try await reply.convert(id).save(on: db)
-                } catch {
-                    logger.error("Failed to save reply \(reply.CommentID) (\(id)): \(error)")
-                }
-            }
-        }
+        //         logger.debug("Saving reply \(reply.CommentID) (\(id))")
+        //         do {
+        //             try await reply.convert(id).save(on: db)
+        //         } catch {
+        //             logger.error("Failed to save reply \(reply.CommentID) (\(id)): \(error)")
+        //         }
+        //     }
+        // }
     }
 }
