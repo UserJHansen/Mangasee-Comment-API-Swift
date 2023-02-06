@@ -61,4 +61,15 @@ final class Reply: Model, Content, Hashable {
   static func == (lhs: Reply, rhs: Reply) -> Bool {
     lhs.id == rhs.id
   }
+
+  func saveWithRetry(on db: Database, _ logger: Logger) async {
+    do {
+      try await save(on: db)
+    } catch {
+      logger.error("Error saving reply \(id!): \(error)")
+
+      await saveWithRetry(on: db, logger)
+    }
+    exists = true
+  }
 }

@@ -38,4 +38,15 @@ final class User: Model, Content, Hashable, Equatable {
   static func == (lhs: User, rhs: User) -> Bool {
     lhs.id == rhs.id
   }
+
+  func saveWithRetry(on db: Database, _ logger: Logger) async {
+    do {
+      try await save(on: db)
+    } catch {
+      logger.error("Error saving user \(name): \(error)")
+
+      await saveWithRetry(on: db, logger)
+    }
+    exists = true
+  }
 }

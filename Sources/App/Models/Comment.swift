@@ -33,17 +33,22 @@ final class Comment: Model, Content, Hashable {
   @Children(for: \.$comment)
   var replies: [Reply]
 
+  @Field(key: "reply_count")
+  var replyCount: Int
+
   // Unpushed replies
   var unpushedReplies: [Reply] = []
 
   var needsMoreReplies = false
+
   var exists = true
+  var needsUpdate = false
 
   init() {}
 
   init(
     id: Int, userId: User.IDValue, content: String, likes: Int,
-    createdAt: Date, needsMoreReplies: Bool, discussionId: Discussion.IDValue? = nil,
+    createdAt: Date, needsMoreReplies: Bool, replyCount: Int, discussionId: Discussion.IDValue? = nil,
     mangaName: Manga.IDValue? = nil
   ) {
     self.id = id
@@ -52,6 +57,7 @@ final class Comment: Model, Content, Hashable {
     self.likes = likes
     self.createdAt = createdAt
     self.needsMoreReplies = needsMoreReplies
+    self.replyCount = replyCount
     $discussion.id = discussionId
     $manga.id = mangaName
 
@@ -75,9 +81,11 @@ final class Comment: Model, Content, Hashable {
     let replies = try container.decodeIfPresent([Reply].self, forKey: .Replies) ?? []
     replies.forEach { $0.$comment.id = commentId }
 
+    let replyCount = Int(try container.decode(String.self, forKey: .ReplyCount))!
     self.init(
       id: commentId, userId: userId, content: content, likes: likes,
-      createdAt: createdAt, needsMoreReplies: replies.count < Int(try container.decode(String.self, forKey: .ReplyCount))!
+      createdAt: createdAt, needsMoreReplies: replies.count < replyCount,
+      replyCount: replyCount
     )
 
     unpushedReplies = replies
@@ -91,5 +99,26 @@ final class Comment: Model, Content, Hashable {
 
   static func == (lhs: Comment, rhs: Comment) -> Bool {
     lhs.id == rhs.id
+  }
+
+  func saveWithRetry(on db: Database, _ logger: Logger) async {
+    do {
+      try await save(on: db)
+    } catch {
+      logger.error("Failed to save comment \(id!): \(error)")
+
+      await saveWithRetry(on: db, logger)
+    }
+    exists = true
+  }
+
+  func update(on db: Database, _ logger: Logger) async {
+    do {
+      try await save(on: db)
+    } catch {
+      logger.error("Failed to update comment \(id!): \(error)")
+
+      await update(on: db, logger)
+    }
   }
 }

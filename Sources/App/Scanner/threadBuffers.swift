@@ -9,12 +9,18 @@ actor CrossThreadDictionarySet<T: Hashable, V: Hashable> {
         elements = [:]
     }
 
-    func insert(_ key: T, _ value: V) {
+    deinit {
+        print("deinit CrossThreadDictionarySet")
+        print("freeing \(elements.count) elements")
+    }
+
+    @discardableResult
+    func insert(_ key: T, _ value: V) -> (inserted: Bool, memberAfterInsert: V) {
         keys.insert(key)
         if elements[key] == nil {
             elements[key] = []
         }
-        elements[key]!.insert(value)
+        return elements[key]!.insert(value)
     }
 
     func key(_ key: T) {
@@ -39,8 +45,9 @@ actor CrossThreadSet<V: Hashable> {
         elements = []
     }
 
-    func insert(_ value: V) {
-        elements.insert(value)
+    @discardableResult
+    func insert(_ value: V) -> (inserted: Bool, memberAfterInsert: V) {
+        return elements.insert(value)
     }
 
     func insert(_ values: [V]) {

@@ -8,6 +8,7 @@ struct CreateComment: AsyncMigration {
       .field("content", .string, .required)
       .field("likes", .int, .required)
       .field("created_at", .datetime, .required)
+      .field("reply_count", .int, .required)
       .field("discussion_id", .int, .references(Discussion.schema, .id))
       .field("manga_name", .string, .references(Manga.schema, .id))
       .create()

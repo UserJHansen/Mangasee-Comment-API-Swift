@@ -46,8 +46,8 @@ public extension Sequence {
 }
 
 enum ConLimits {
-    static let network = 100
-    static let db = 100
+    static let network = 50
+    static let db = 500
 }
 
 class ScanHandler {

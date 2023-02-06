@@ -27,4 +27,15 @@ final class Manga: Model, Content, Hashable, Equatable {
     // This works because this constructor is only called by the scanner
     exists = false
   }
+
+  func saveWithRetry(on db: Database, _ logger: Logger) async {
+    do {
+      try await save(on: db)
+    } catch {
+      logger.error("Failed to save \(id!): \(error)")
+
+      await saveWithRetry(on: db, logger)
+    }
+    exists = true
+  }
 }
