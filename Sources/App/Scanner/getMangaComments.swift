@@ -143,15 +143,15 @@ extension ScanHandler {
         logger.info("\(Date()) Saving comments")
 
         await comments.elements.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] comment async in
-            guard !comment.exists else {
-                logger.debug("Skipping comment \(comment.id!)")
-                return
-            }
-
             guard !comment.needsUpdate else {
                 await comment.update(on: db, logger)
 
                 logger.debug("Updating comment \(comment.id!)")
+                return
+            }
+
+            guard !comment.exists else {
+                logger.debug("Skipping comment \(comment.id!)")
                 return
             }
 
