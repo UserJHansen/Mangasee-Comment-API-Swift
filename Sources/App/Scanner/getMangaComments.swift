@@ -2,6 +2,7 @@ import AsyncHTTPClient
 import CollectionConcurrencyKit
 import Fluent
 import Foundation
+import Jobs
 import Vapor
 
 struct SearchResponse: Codable {
@@ -47,34 +48,46 @@ extension ScanHandler {
         return try request.content.decode(MangaseeResponse<[Reply]>.self).val
     }
 
+    func processNames(_ mangaNames: Set<String>) async throws -> CrossThreadSet<[Comment]> {
+        let result = CrossThreadSet<[Comment]>()
+        var completed = 0
+        var secs = 1
+        let timer = Jobs.add(interval: .seconds(1)) { [self] in
+            logger.info("\(Date()) Completed \(completed) requests, \(completed / secs)/s")
+            secs += 1
+        }
+        try await mangaNames.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] id in
+            let comments = try await requestMangaComments(name: id)
+
+            for comment in comments {
+                comment.$manga.id = id
+            }
+
+            completed += 1
+
+            await result.insert(comments)
+        }
+
+        timer.stop()
+        return result
+    }
+
     func getMangaComments() async throws {
         logger.info("\(Date()) Getting manga names...")
         var mangaNames = try await pullNamesFromServer()
 
-        logger.info("\(Date()) Getting users...")
-        // Add all the users from the database to the user buffer
-        var usernames = CrossThreadSet<User>()
-        await usernames.insert(try! await (User.query(on: db).all()))
-
-        logger.info("\(Date()) Getting Comments...")
-        // Set up our in-memory storage for comments and replies
-        var comments = CrossThreadSet<Comment>()
-        await comments.insert(try! await (Comment.query(on: db).all()))
-
-        var replies = CrossThreadSet<Reply>()
-        await replies.insert(try! await (Reply.query(on: db).all()))
-
         logger.info("\(Date()) Completing \(mangaNames.count) requests...")
-        // NOTE: This may potentially cancel on a failed request. Make sure to test.
-        try await mangaNames.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] id in
 
-            let commentList = try await requestMangaComments(name: id)
+        let commentLists = try await processNames(mangaNames)
 
+        let count = await commentLists.elements.reduce(0) { $0 + $1.count }
+        logger.info("\(Date()) Finished requests, \(count) comments found")
+
+        try await commentLists.elements.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] commentList in
             for comment in commentList {
                 logger.debug("Adding \(comment.username) (\(comment.$user.id)) to usernames")
                 await usernames.insert(User(id: comment.$user.id, name: comment.username))
-                logger.debug("Added comment \(comment.id!) to manga \(id)")
-                comment.$manga.id = id
+                logger.debug("Added comment \(comment.id!) to manga \(comment.$manga.id!)")
                 let result = await comments.insert(comment)
                 if !result.inserted {
                     let oldComment = result.memberAfterInsert
@@ -82,19 +95,16 @@ extension ScanHandler {
                     if comment.likes != oldComment.likes {
                         oldComment.likes = comment.likes
                         oldComment.needsUpdate = true
-
-                        await comments.remove(oldComment)
-                        await comments.insert(oldComment)
                     }
 
                     if comment.replyCount != oldComment.replyCount {
                         let newreplies: [Reply]
 
                         if comment.needsMoreReplies {
-                            logger.debug("\(Date()) Loading replies for comment \(comment.id!) in manga \(id)")
+                            logger.debug("\(Date()) Loading replies for comment \(comment.id!) in manga \(comment.$manga.id!)")
                             newreplies = try await requestMoreReplies(to: comment)
                         } else {
-                            logger.debug("\(Date()) Comment \(comment.id!) already had all replies in manga \(id)")
+                            logger.debug("\(Date()) Comment \(comment.id!) already had all replies in manga \(comment.$manga.id!)")
                             newreplies = comment.unpushedReplies
                         }
 
@@ -109,18 +119,6 @@ extension ScanHandler {
                 }
             }
         }
-
-        logger.info("\(Date()) Saving users")
-
-        await usernames.elements.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] user async in
-            guard !user.exists else {
-                logger.debug("Skipping \(user.name) (\(user.id!)))")
-                return
-            }
-            logger.debug("Saving \(user.name) (\(user.id!)))")
-            await user.saveWithRetry(on: db, logger)
-        }
-        usernames = CrossThreadSet<User>()
 
         logger.info("\(Date()) Saving mangas")
         let mangas = CrossThreadSet<Manga>()
@@ -140,36 +138,7 @@ extension ScanHandler {
             await manga.saveWithRetry(on: db, logger)
         }
 
-        logger.info("\(Date()) Saving comments")
-
-        await comments.elements.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] comment async in
-            guard !comment.needsUpdate else {
-                await comment.update(on: db, logger)
-
-                logger.debug("Updating comment \(comment.id!)")
-                return
-            }
-
-            guard !comment.exists else {
-                logger.debug("Skipping comment \(comment.id!)")
-                return
-            }
-
-            logger.info("Saving comment \(comment.id!)")
-            await comment.saveWithRetry(on: db, logger)
-        }
-        comments = CrossThreadSet<Comment>()
-
-        logger.info("\(Date()) Saving replies")
-        await replies.elements.limitedConcurrentForEach(maxConcurrent: ConLimits.db) { [self] reply async in
-            guard !reply.exists else {
-                logger.debug("Skipping reply \(reply.id!)")
-                return
-            }
-
-            logger.info("Saving reply \(reply.id!)")
-            await reply.saveWithRetry(on: db, logger)
-        }
-        replies = CrossThreadSet<Reply>()
+        logger.info("\(Date()) Saving users, comments, replies, and likes")
+        try await flush()
     }
 }

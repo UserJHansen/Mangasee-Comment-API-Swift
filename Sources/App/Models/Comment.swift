@@ -120,5 +120,6 @@ final class Comment: Model, Content, Hashable {
 
       await update(on: db, logger)
     }
+    needsUpdate = false
   }
 }

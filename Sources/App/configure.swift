@@ -43,6 +43,11 @@ public func configure(_ app: Application) throws {
     }
 
     let scanner = ScanHandler(app.logger, url: Environment.get("SERVER") ?? "https://mangasee123.com/", db: app.db, client: app.client)
+
+    Task(priority: .high) {
+        try await scanner.fill()
+    }
+
     Jobs.add(interval: .seconds(10.0 * 60)) {
         Task {
             do {
