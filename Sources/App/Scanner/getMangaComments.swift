@@ -73,6 +73,8 @@ extension ScanHandler {
     }
 
     func getMangaComments() async throws {
+        let start = Date()
+
         logger.info("\(Date()) Getting manga names...")
         var mangaNames = try await pullNamesFromServer()
 
@@ -140,5 +142,12 @@ extension ScanHandler {
 
         logger.info("\(Date()) Saving users, comments, replies, and likes")
         try await flush()
+
+        let end = Date()
+        logger.info("\(Date()) Finished in \(end.timeIntervalSince(start))s")
+        if ScannerStatistics.isMetricEnabled {
+            ScannerStatistics.timing!.observe(end.timeIntervalSince(start), [("type", "managa")])
+            ScannerStatistics.manga!.inc(ScannerStatistics.manga!.get() - count)
+        }
     }
 }

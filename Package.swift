@@ -14,6 +14,9 @@ let package = Package(
 
         .package(url: "https://github.com/JohnSundell/CollectionConcurrencyKit.git", from: "0.2.0"),
         .package(url: "https://github.com/BrettRToomey/Jobs.git", from: "1.1.1"),
+
+        .package(url: "https://github.com/swift-server-community/SwiftPrometheus.git", from: "1.0.1"),
+        .package(url: "https://github.com/apple/swift-metrics.git", "1.0.0" ..< "3.0.0"),
     ],
     targets: [
         .target(
@@ -24,6 +27,8 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "Jobs", package: "jobs"),
                 .product(name: "CollectionConcurrencyKit", package: "CollectionConcurrencyKit"),
+                .product(name: "SwiftPrometheus", package: "SwiftPrometheus"),
+                .product(name: "Metrics", package: "swift-metrics"),
             ],
             swiftSettings: [
                 // Enable better optimizations when building in Release configuration. Despite the use of

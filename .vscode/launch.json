@@ -5,7 +5,10 @@
             "request": "launch",
             "name": "Debug Run",
             "program": "${workspaceFolder:mangasee-comment-api}/.build/debug/Run",
-            "args": [],
+            "args": [
+                "start",
+                "-e"
+            ],
             "env": {
                 // "LOG_LEVEL": "debug"
             },

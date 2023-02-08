@@ -110,6 +110,12 @@ class ScanHandler {
             logger.info("Saving reply \(reply.id!)")
             await reply.saveWithRetry(on: db, logger)
         }
+
+        if ScannerStatistics.isMetricEnabled {
+            await ScannerStatistics.comments!.inc(comments.elements.count - ScannerStatistics.comments!.get())
+            await ScannerStatistics.replies!.inc(replies.elements.count - ScannerStatistics.replies!.get())
+            await ScannerStatistics.users!.inc(usernames.elements.count - ScannerStatistics.users!.get())
+        }
     }
 
     init(_ logger: Logger, url server: String, db: Database, client: Vapor.Client) {
