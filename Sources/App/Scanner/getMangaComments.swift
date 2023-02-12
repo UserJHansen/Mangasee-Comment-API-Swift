@@ -13,8 +13,14 @@ struct SearchResponse: Codable {
 
 extension ScanHandler {
     /// Returns a set of every available manga's name.
-    func pullNamesFromServer() async throws -> Set<String> {
+    func pullNamesFromServer() async throws -> Set<String> { let process = Process()
+
+        let output = try process.run(URL(fileURLWithPath: "/bin/python3"), arguments: ["scrape.py", "\(server)_search.php"])
+        logger.debug("\(output)")
+
         let response = try await client.get("\(server)_search.php")
+
+        logger.debug("Result: \(String(bytes: response.body!.getBytes(at: 0, length: response.body!.readableBytes)!, encoding: .utf8)!)")
 
         logger.info("\(Date()) Downloaded list of mangas")
         let mangas = try response.content.decode([SearchResponse].self)
