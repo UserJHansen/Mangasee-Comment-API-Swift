@@ -55,7 +55,7 @@ struct Start: Command {
 
 // configures your application
 public func configure(_ app: Application) throws {
-    app.databases.use(.postgres(hostname: "localhost", username: "vapor", password: "vapor", database: "vapor"), as: .psql)
+    app.databases.use(.postgres(hostname: Environment.get("db-host") ?? "localhost", username: Environment.get("db-user") ?? "vapor", password: Environment.get("db-pass") ?? "vapor", database: Environment.get("db-name") ?? "vapor"), as: .psql)
 
     app.migrations.add(CreateUser())
     app.migrations.add(CreateManga())
