@@ -54,7 +54,7 @@ func startProm(using cont: CommandContext) throws {
     let reqSize = prom.createSummary(forType: Int.self, named: "mangasee_request_size_bytes", helpText: "The HTTP request sizes in bytes.")
 
     cont.application.middleware.use(LoggingMiddleware(counter: reqCounter, size: reqSize))
-    cont.application.get("/metrics") { _ async throws -> String in
+    cont.application.get("metrics") { _ async throws -> String in
         try await MetricsSystem.prometheus().collect()
     }
 }

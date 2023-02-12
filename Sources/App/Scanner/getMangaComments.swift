@@ -51,10 +51,15 @@ extension ScanHandler {
     func processNames(_ mangaNames: Set<String>) async throws -> CrossThreadSet<[Comment]> {
         let result = CrossThreadSet<[Comment]>()
         var completed = 0
-        var secs = 1
-        let timer = Jobs.add(interval: .seconds(1)) { [self] in
+        var secs = 0
+        let interval = 10
+        let timer = Jobs.add(interval: .seconds(Double(interval))) { [self] in
+            guard secs != 0 else {
+                return
+            }
+
             logger.info("\(Date()) Completed \(completed) requests, \(completed / secs)/s")
-            secs += 1
+            secs += interval
         }
         try await mangaNames.limitedConcurrentForEach(maxConcurrent: ConLimits.network) { [self] id in
             let comments = try await requestMangaComments(name: id)
@@ -147,7 +152,7 @@ extension ScanHandler {
         logger.info("\(Date()) Finished in \(end.timeIntervalSince(start))s")
         if ScannerStatistics.isMetricEnabled {
             ScannerStatistics.timing!.observe(end.timeIntervalSince(start), [("type", "managa")])
-            ScannerStatistics.manga!.inc(ScannerStatistics.manga!.get() - count)
+            ScannerStatistics.manga!.inc(count - ScannerStatistics.manga!.get())
         }
     }
 }

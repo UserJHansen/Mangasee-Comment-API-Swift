@@ -41,7 +41,7 @@ struct Start: Command {
             try await scanner.fill()
         }
 
-        Jobs.add(interval: .seconds(10.0 * 60)) {
+        Jobs.add(interval: .seconds(5.0 * 60)) {
             Task {
                 do {
                     try await scanner.scan()
